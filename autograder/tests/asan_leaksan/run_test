@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+TIMEOUT=30
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TESTS_DIR="$(dirname "$SCRIPT_DIR")"
+AUTOGRADER_DIR="$(dirname "$TESTS_DIR")"
+ROOT_DIR="${AUTOGRADER_DIR}"
+INCLUDE_DIR="${TESTS_DIR}/include"
+SRC_DIR="${TESTS_DIR}/src"
+BUILD_DIR="${SCRIPT_DIR}/build"
+LOG_FILE="${SCRIPT_DIR}/asan-leaksan.log"
+OUTPUT_BIN="${BUILD_DIR}/asan_leaksan_check"
+
+: > "$LOG_FILE"
+mkdir -p "$BUILD_DIR"
+
+log() {
+    echo "$@" | tee -a "$LOG_FILE"
+}
+
+COMPILER=""
+if command -v g++ >/dev/null 2>&1; then
+    COMPILER="g++"
+elif command -v clang++ >/dev/null 2>&1; then
+    COMPILER="clang++"
+else
+    log "Error: no se encontro clang++ ni g++"
+    exit 1
+fi
+
+if [[ -d "/autograder/submission/src" ]]; then
+    SRC_DIR="/autograder/submission/src"
+fi
+
+EIGEN_DIR=""
+if [[ -d "${ROOT_DIR}/third_party/eigen-3.4.0" ]]; then
+    EIGEN_DIR="${ROOT_DIR}/third_party/eigen-3.4.0"
+elif [[ -d "/usr/include/eigen3" ]]; then
+    EIGEN_DIR="/usr/include/eigen3"
+fi
+
+STD_FLAG="-std=c++17"
+for candidate in c++23 c++20 c++2a c++17 c++14 c++11; do
+    if printf 'int main() { return 0; }\n' | "$COMPILER" -x c++ -std="${candidate}" -fsyntax-only - >/dev/null 2>&1; then
+        STD_FLAG="-std=${candidate}"
+        break
+    fi
+done
+
+log "Compilando smoke test con AddressSanitizer y LeakSanitizer con ${COMPILER} ${STD_FLAG}..."
+if [[ -n "$EIGEN_DIR" ]]; then
+    log "Usando include de Eigen: ${EIGEN_DIR}"
+else
+    log "Warning: no se detecto include de Eigen (se intentara compilar de todas formas)"
+fi
+
+INCLUDE_FLAGS=(
+    -I"${TESTS_DIR}"
+    -I"${INCLUDE_DIR}"
+    -I"${SRC_DIR}"
+    -I"/autograder/submission"
+    -I"/autograder/submission/include"
+)
+if [[ -n "$EIGEN_DIR" ]]; then
+    INCLUDE_FLAGS+=(-I"${EIGEN_DIR}")
+fi
+
+if ! "$COMPILER" \
+    "$STD_FLAG" \
+    -g \
+    -O1 \
+    -fsanitize=address,leak,undefined \
+    -fno-omit-frame-pointer \
+    "${INCLUDE_FLAGS[@]}" \
+    "${SCRIPT_DIR}/asan_leaksan.cpp" \
+    -o "$OUTPUT_BIN" 2>&1 | tee -a "$LOG_FILE"; then
+    log "Fallo la compilacion del check ASan/LSan"
+    log "Nota: el fallo puede deberse a incompatibilidad del compilador del autograder."
+    gzip -f "$LOG_FILE"
+    exit 1
+fi
+
+log "Ejecutando smoke test instrumentado..."
+
+if ! ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+    timeout "$TIMEOUT" "$OUTPUT_BIN" 2>&1 | tee -a "$LOG_FILE"; then
+    if [[ "${PIPESTATUS[0]}" -eq 124 ]]; then
+        log "Timeout excedido durante la ejecucion instrumentada"
+    else
+        log "ASan/LSan detecto un problema"
+    fi
+    gzip -f "$LOG_FILE"
+    exit 1
+fi
+
+log "ASan/LSan: ejecucion sin errores ni fugas detectadas"
+gzip -f "$LOG_FILE"
+
+exit 0

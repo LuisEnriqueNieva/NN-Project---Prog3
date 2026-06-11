@@ -1,0 +1,17 @@
+limit_submissions: -1
+required_files:
+  - include/utec/algebra/shape.h
+  - include/utec/algebra/tensor_backend.h
+  - include/utec/algebra/tensor_ops.h
+  - include/utec/nn/nn_ops.h
+  - include/utec/nn/nn_interfaces.h
+  - include/utec/nn/nn_dense.h
+  - include/utec/nn/nn_convolution.h
+  - include/utec/nn/nn_pooling.h
+  - include/utec/nn/nn_flatten.h
+  - include/utec/nn/nn_activation.h
+  - include/utec/nn/nn_loss.h
+  - include/utec/nn/nn_optimizer.h
+  - include/utec/nn/nn_graph.h
+  - include/utec/nn/neural_network.h
+  - src/feature4_solution.cpp

@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+TIMEOUT=30
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TESTS_DIR="$(dirname "$SCRIPT_DIR")"
+AUTOGRADER_DIR="$(dirname "$TESTS_DIR")"
+PROJECT_ROOT="$(dirname "$AUTOGRADER_DIR")"
+SUBMISSION_DIR="/autograder/submission"
+ROOT_DIR="${AUTOGRADER_DIR}"
+INCLUDE_DIR="${TESTS_DIR}/include"
+SRC_DIR="${TESTS_DIR}/src"
+HEADER_DIR="${INCLUDE_DIR}"
+LOG_FILE="${SCRIPT_DIR}/clang-tidy.log"
+CLANG_TIDY_BIN=""
+CLANGXX_BIN=""
+
+: > "$LOG_FILE"
+
+log() {
+    echo "$@" | tee -a "$LOG_FILE"
+}
+
+for candidate in 20 19 18 17 16 15 14; do
+    if [[ -z "$CLANG_TIDY_BIN" ]] && command -v "clang-tidy-${candidate}" >/dev/null 2>&1; then
+        CLANG_TIDY_BIN="clang-tidy-${candidate}"
+    fi
+    if [[ -z "$CLANGXX_BIN" ]] && command -v "clang++-${candidate}" >/dev/null 2>&1; then
+        CLANGXX_BIN="clang++-${candidate}"
+    fi
+done
+
+if [[ -z "$CLANG_TIDY_BIN" ]] && command -v clang-tidy >/dev/null 2>&1; then
+    CLANG_TIDY_BIN="clang-tidy"
+fi
+if [[ -z "$CLANGXX_BIN" ]] && command -v clang++ >/dev/null 2>&1; then
+    CLANGXX_BIN="clang++"
+fi
+
+if [[ -z "$CLANG_TIDY_BIN" ]]; then
+    log "Error: clang-tidy no esta instalado"
+    exit 1
+fi
+
+if [[ -d "${SUBMISSION_DIR}/src" ]]; then
+    SRC_DIR="${SUBMISSION_DIR}/src"
+elif [[ -d "${PROJECT_ROOT}/src" ]]; then
+    SRC_DIR="${PROJECT_ROOT}/src"
+elif [[ -d "${AUTOGRADER_DIR}/src" ]]; then
+    SRC_DIR="${AUTOGRADER_DIR}/src"
+fi
+
+if [[ -d "${SUBMISSION_DIR}/include" ]]; then
+    HEADER_DIR="${SUBMISSION_DIR}/include"
+elif [[ -d "${PROJECT_ROOT}/include" ]]; then
+    HEADER_DIR="${PROJECT_ROOT}/include"
+elif [[ -d "${AUTOGRADER_DIR}/include" ]]; then
+    HEADER_DIR="${AUTOGRADER_DIR}/include"
+fi
+
+EIGEN_DIR=""
+if [[ -d "${ROOT_DIR}/third_party/eigen-3.4.0" ]]; then
+    EIGEN_DIR="${ROOT_DIR}/third_party/eigen-3.4.0"
+elif [[ -d "/usr/include/eigen3" ]]; then
+    EIGEN_DIR="/usr/include/eigen3"
+fi
+
+STD_FLAG="-std=c++23"
+if [[ -n "$CLANGXX_BIN" ]]; then
+    if ! printf 'int main() { return 0; }\n' | "$CLANGXX_BIN" -x c++ "$STD_FLAG" -fsyntax-only - >/dev/null 2>&1; then
+        STD_FLAG="-std=c++20"
+    fi
+fi
+
+LIBSTDCPP_FLAGS=()
+LATEST_LIBSTDCPP=""
+if [[ -d "/usr/include/c++" ]]; then
+    LATEST_LIBSTDCPP="$(ls -1 /usr/include/c++ 2>/dev/null | sort -V | tail -n1 || true)"
+fi
+if [[ -n "${LATEST_LIBSTDCPP}" && -d "/usr/include/c++/${LATEST_LIBSTDCPP}" ]]; then
+    LIBSTDCPP_FLAGS+=(-isystem "/usr/include/c++/${LATEST_LIBSTDCPP}")
+    LIBSTDCPP_FLAGS+=(-isystem "/usr/include/c++/${LATEST_LIBSTDCPP}/backward")
+
+    GCC_MACHINE="$(gcc -dumpmachine 2>/dev/null || true)"
+    if [[ -n "${GCC_MACHINE}" && -d "/usr/include/${GCC_MACHINE}/c++/${LATEST_LIBSTDCPP}" ]]; then
+        LIBSTDCPP_FLAGS+=(-isystem "/usr/include/${GCC_MACHINE}/c++/${LATEST_LIBSTDCPP}")
+    fi
+fi
+
+FILES=(
+    "${SCRIPT_DIR}/clang_tidy.cpp"
+    "${HEADER_DIR}/utec/algebra/shape.h"
+    "${HEADER_DIR}/utec/nn/nn_interfaces.h"
+    "${HEADER_DIR}/utec/nn/nn_activation.h"
+    "${HEADER_DIR}/utec/nn/nn_optimizer.h"
+    "${HEADER_DIR}/utec/nn/nn_dense.h"
+    "${HEADER_DIR}/utec/nn/nn_convolution.h"
+    "${HEADER_DIR}/utec/nn/nn_pooling.h"
+    "${HEADER_DIR}/utec/nn/nn_flatten.h"
+    "${HEADER_DIR}/utec/nn/nn_graph.h"
+    "${HEADER_DIR}/utec/nn/neural_network.h"
+)
+
+CLANG_TIDY_INCLUDE_FLAGS=(
+    -I"${TESTS_DIR}"
+    -I"${INCLUDE_DIR}"
+    -I"${HEADER_DIR}"
+    -I"${SRC_DIR}"
+    -I"${SUBMISSION_DIR}"
+    -I"${SUBMISSION_DIR}/include"
+)
+if [[ -n "$EIGEN_DIR" ]]; then
+    CLANG_TIDY_INCLUDE_FLAGS+=(-I"${EIGEN_DIR}")
+fi
+
+EXIT_CODE=0
+for fullpath in "${FILES[@]}"; do
+    if [[ ! -f "$fullpath" ]]; then
+        log "Warning: archivo no encontrado - $fullpath"
+        EXIT_CODE=1
+        continue
+    fi
+
+    log "Analizando $(basename "$fullpath") con ${CLANG_TIDY_BIN} (${STD_FLAG})..."
+    if ! timeout "$TIMEOUT" "$CLANG_TIDY_BIN" "$fullpath" \
+        --quiet \
+        --config='{
+            Checks: "clang-diagnostic-*,clang-analyzer-*",
+            WarningsAsErrors: "*"
+        }' \
+        -- \
+        -x c++ \
+        "$STD_FLAG" \
+        "${LIBSTDCPP_FLAGS[@]}" \
+        "${CLANG_TIDY_INCLUDE_FLAGS[@]}" 2>&1 | tee -a "$LOG_FILE"; then
+        if [[ "${PIPESTATUS[0]}" -eq 124 ]]; then
+            log "Timeout excedido al analizar $(basename "$fullpath")"
+        fi
+        EXIT_CODE=1
+    fi
+done
+
+if [[ "$EXIT_CODE" -eq 0 ]]; then
+    log "Clang-Tidy: todos los checks pasaron"
+else
+    log "Clang-Tidy: se encontraron problemas"
+fi
+
+gzip -f "$LOG_FILE"
+
+exit "$EXIT_CODE"
