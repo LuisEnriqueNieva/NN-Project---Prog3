@@ -76,10 +76,16 @@ namespace utec::tf {
             return a;
         }
 
-        void backward() {
+        Tensor<float> backward(const Tensor<float>& grad) {
             if (!compiled_) {
                 throw std::logic_error("backward sobre un modelo no compilado");
             }
+            Tensor<float> g = grad;
+            for (auto it = layers_.rbegin(); it != layers_.rend(); ++it) {
+                g = (*it)->backward(g);
+            }
+            collect_last_gradients();
+            return g;
         }
 
         EvalResult evaluate(const Tensor<float>& x, const Tensor<float>& y) {

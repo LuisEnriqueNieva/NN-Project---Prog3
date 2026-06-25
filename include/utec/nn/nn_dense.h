@@ -111,6 +111,20 @@ namespace utec::tf::layers {
             return std::make_unique<Dense>(*this);
         }
 
+        void set_weights(const utec::Tensor<float>& w) {
+            if (!(w.shape() == weights_.shape())) {
+                throw std::invalid_argument("shape incorrecto en weights");
+            }
+            weights_ = w;
+        }
+
+        void set_bias(const utec::Tensor<float>& b) {
+            if (!(b.shape() == bias_.shape())) {
+                throw std::invalid_argument("shape incorrecto en bias");
+            }
+            bias_ = b;
+        }
+
     private:
         size_t units_;
         Activation activation_;
