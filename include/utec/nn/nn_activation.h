@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "nn_loss.h"
+
 namespace utec::tf {
 
     enum class Activation { Linear, Relu, Softmax };

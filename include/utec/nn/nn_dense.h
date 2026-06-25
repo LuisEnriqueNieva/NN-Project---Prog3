@@ -10,7 +10,7 @@ namespace utec::tf::layers {
 
     class Dense : public Layer {
     public:
-        Dense(int units, Activation activation)
+        Dense(int units, Activation activation = Activation::Linear)
             : units_(static_cast<size_t>(units)), activation_(activation) {
             if (units <= 0) {
                 throw std::invalid_argument("units debe ser positivo");

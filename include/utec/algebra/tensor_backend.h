@@ -1,5 +1,7 @@
 #pragma once
+#define UTEC_TENSOR_BACKEND_BUILDING
 #include "shape.h"
+#undef UTEC_TENSOR_BACKEND_BUILDING
 #include <vector>
 #include <initializer_list>
 #include <cmath>
