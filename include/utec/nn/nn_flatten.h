@@ -1,42 +1,46 @@
 #pragma once
+
 #include "nn_interfaces.h"
-#include "../algebra/tensor_ops.h"
 #include <stdexcept>
 
 namespace utec::tf::layers {
+
     class Flatten : public Layer {
+    private:
+        Shape input_shape_;
+        Shape output_shape_;
+        Shape last_batch_shape_;
+        bool built_ = false;
+        bool has_cache_ = false;
 
     public:
-        void build(const utec::Shape& shape) override {
-            input_shape_ = shape;
-            flat_size_ = shape.total_size();
-            forward_done_ = false;
+        Flatten() = default;
+
+        void build(const Shape& input_shape) override {
+            if (input_shape.empty()) throw std::invalid_argument("Flatten input shape cannot be empty");
+            input_shape_ = input_shape;
+            output_shape_ = Shape{input_shape.total_size()};
+            built_ = true;
         }
-        utec::Tensor<float> forward(const utec::Tensor<float>& x) override {
-            input_shape_ = x.shape();
-            size_t batch = x.shape()[0];
-            size_t flat  = x.size() / batch;
-            forward_done_ = true;
-            return x.reshaped(utec::Shape{batch, flat});
+
+        Tensor<float> forward(const Tensor<float>& input) override {
+            if (!built_) throw std::logic_error("Flatten layer is not built");
+            if (input.rank() != input_shape_.rank() + 1) throw std::invalid_argument("Flatten forward input rank mismatch");
+            for (std::size_t i = 0; i < input_shape_.rank(); ++i) if (input.shape()[i + 1] != input_shape_[i]) throw std::invalid_argument("Flatten forward input shape mismatch");
+            last_batch_shape_ = input.shape();
+            has_cache_ = true;
+            return input.reshape(Shape{input.shape()[0], input_shape_.total_size()});
         }
-        utec::Tensor<float> backward(const utec::Tensor<float>& grad) override {
-            if (!forward_done_)
-                throw std::logic_error("backward called before forward");
-            if (grad.size() != input_shape_.total_size())
-                throw std::invalid_argument("grad size does not match input size");
-            return grad.reshaped(input_shape_);
+
+        Tensor<float> backward(const Tensor<float>& grad_output) override {
+            if (!has_cache_) throw std::logic_error("Flatten backward called before forward");
+            if (grad_output.rank() != 2 || grad_output.shape()[0] != last_batch_shape_[0] || grad_output.shape()[1] != output_shape_[0]) throw std::invalid_argument("Flatten backward gradient shape mismatch");
+            return grad_output.reshape(last_batch_shape_);
         }
-        std::unique_ptr<Layer> clone() const override {
-            return std::make_unique<Flatten>(*this);
-        }
+
+        Shape output_shape() const override { return output_shape_; }
         std::string type_name() const override { return "flatten"; }
-        utec::Shape output_shape() const override { return utec::Shape{flat_size_}; }
-
-    private:
-        utec::Shape input_shape_;
-        size_t flat_size_ = 0;
-        bool forward_done_ = false;
+        std::unique_ptr<Layer> clone() const override { return std::make_unique<Flatten>(*this); }
     };
-}
 
-using namespace utec::tf;
+} // namespace utec::tf::layers
