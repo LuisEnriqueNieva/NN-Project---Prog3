@@ -1,30 +1,47 @@
-cmake_minimum_required(VERSION 3.10.2)
-project(prog3_pf_epic1_feature4_v2026_1)
+cmake_minimum_required(VERSION 3.20)
+project(utec_ai LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
-if(UNIX AND NOT APPLE)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(UTEC_REQUIRE_EIGEN "Require system Eigen3 package" OFF)
+
+find_package(Eigen3 QUIET)
+if(Eigen3_FOUND)
+    message(STATUS "Eigen3 found: using Eigen in tensor operations")
+else()
+    message(WARNING "Eigen3 was not found. The code will compile with the portable tensor implementation. In the course environment, install Eigen3 or configure -DUTEC_REQUIRE_EIGEN=ON.")
+    if(UTEC_REQUIRE_EIGEN)
+        message(FATAL_ERROR "Eigen3 is required but was not found")
+    endif()
 endif()
 
-if(MINGW OR CYGWIN)
-    add_definitions(-O3)
+add_library(utec_ai INTERFACE)
+target_include_directories(utec_ai INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(utec_ai INTERFACE cxx_std_23)
+if(Eigen3_FOUND)
+    target_link_libraries(utec_ai INTERFACE Eigen3::Eigen)
+    target_compile_definitions(utec_ai INTERFACE UTEC_USE_EIGEN=1)
 endif()
 
-include_directories(./include ./src)
-file(GLOB_RECURSE source_files CONFIGURE_DEPENDS
-        src/*.cpp
-        src/*.cc
-        src/*.cxx)
+add_executable(utec_ai_demo main.cpp)
+target_link_libraries(utec_ai_demo PRIVATE utec_ai)
 
-add_executable(${PROJECT_NAME}
-        main.cpp
-        ${source_files}
-        tests/epic1/feature4_computational_graph_test.cpp)
+include(CTest)
+enable_testing()
 
-if(UNIX AND NOT APPLE)
-    find_package(TBB)
-    target_link_libraries(${PROJECT_NAME} TBB::tbb)
-endif()
+function(add_prog3_test TEST_NAME TEST_SOURCE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE})
+    target_link_libraries(${TEST_NAME} PRIVATE utec_ai)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endfunction()
 
-add_subdirectory(autograder)
-
+add_prog3_test(epic1_feature1_eigen_backend_test tests/epic1/feature1_eigen_backend_test.cpp)
+add_prog3_test(epic1_feature2_numeric_ops_test tests/epic1/feature2_numeric_ops_test.cpp)
+add_prog3_test(epic1_feature3_forward_layers_test tests/epic1/feature3_forward_layers_test.cpp)
+add_prog3_test(epic1_feature4_computational_graph_test tests/epic1/feature4_computational_graph_test.cpp)
+add_prog3_test(epic2_feature1_monitoring_test tests/epic2/feature1_monitoring_test.cpp)
+add_prog3_test(epic2_feature2_cnn_application_test tests/epic2/feature2_cnn_application_test.cpp)
+add_prog3_test(epic2_feature3_serialization_test tests/epic2/feature3_serialization_test.cpp)
+add_prog3_test(epic2_feature4_reporting_test tests/epic2/feature4_reporting_test.cpp)
