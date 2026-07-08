@@ -18,7 +18,8 @@ file(GLOB_RECURSE source_files CONFIGURE_DEPENDS
 
 add_executable(${PROJECT_NAME}
         main.cpp
-        ${source_files})
+        ${source_files}
+        tests/epic1/feature4_computational_graph_test.cpp)
 
 if(UNIX AND NOT APPLE)
     find_package(TBB)
