@@ -1,28 +1,27 @@
 #pragma once
+
 #include "../algebra/tensor_ops.h"
 #include <stdexcept>
+#include <string>
 
 namespace utec::tf::optimizers {
 
-    struct SGD {
-        float learning_rate;
+class SGD {
+private:
+    float learning_rate_ = 0.01f;
 
-        explicit SGD(float learning_rate) : learning_rate(learning_rate) {
-            if (learning_rate <= 0.0f) {
-                throw std::invalid_argument("el learning rate debe ser positivo");
-            }
-        }
+public:
+    explicit SGD(float learning_rate = 0.01f) : learning_rate_(learning_rate) {
+        if (learning_rate <= 0.0f) throw std::invalid_argument("SGD learning rate must be positive");
+    }
 
-        void update(utec::Tensor<float>& parameter, const utec::Tensor<float>& gradient) {
-            if (!(parameter.shape() == gradient.shape())) {
-                throw std::invalid_argument("el parametro y el gradiente deben tener la misma forma");
-            }
-            for (size_t i = 0; i < parameter.size(); i++) {
-                parameter.flat(i) = parameter.flat(i) - learning_rate * gradient.flat(i);
-            }
-        }
-    };
+    [[nodiscard]] float learning_rate() const { return learning_rate_; }
+    [[nodiscard]] std::string name() const { return "SGD"; }
 
-}
+    void update(Tensor<float>& param, const Tensor<float>& grad) const {
+        if (param.shape() != grad.shape()) throw std::invalid_argument("optimizer parameter/gradient shape mismatch");
+        for (std::size_t i = 0; i < param.size(); ++i) param.flat(i) -= learning_rate_ * grad.flat(i);
+    }
+};
 
-using namespace utec::tf;
+} // namespace utec::tf::optimizers
