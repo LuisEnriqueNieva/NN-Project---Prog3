@@ -73,7 +73,6 @@ public:
     [[nodiscard]] std::size_t size() const { return static_cast<std::size_t>(data_.size()); }
     [[nodiscard]] bool empty() const { return data_.size() == 0; }
 
-    // Acceso directo a Eigen, lo usa tensor_ops.h para matmul y demás
     [[nodiscard]] Eigen::Matrix<T, Eigen::Dynamic, 1>& raw() { return data_; }
     [[nodiscard]] const Eigen::Matrix<T, Eigen::Dynamic, 1>& raw() const { return data_; }
 
