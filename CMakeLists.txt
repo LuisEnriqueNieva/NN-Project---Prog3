@@ -5,25 +5,14 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(UTEC_REQUIRE_EIGEN "Require system Eigen3 package" OFF)
-
-find_package(Eigen3 QUIET)
-if(Eigen3_FOUND)
-    message(STATUS "Eigen3 found: using Eigen in tensor operations")
-else()
-    message(WARNING "Eigen3 was not found. The code will compile with the portable tensor implementation. In the course environment, install Eigen3 or configure -DUTEC_REQUIRE_EIGEN=ON.")
-    if(UTEC_REQUIRE_EIGEN)
-        message(FATAL_ERROR "Eigen3 is required but was not found")
-    endif()
-endif()
+set(EIGEN3_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen-3.4.0")
 
 add_library(utec_ai INTERFACE)
-target_include_directories(utec_ai INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(utec_ai INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${EIGEN3_INCLUDE_DIR}
+)
 target_compile_features(utec_ai INTERFACE cxx_std_23)
-if(Eigen3_FOUND)
-    target_link_libraries(utec_ai INTERFACE Eigen3::Eigen)
-    target_compile_definitions(utec_ai INTERFACE UTEC_USE_EIGEN=1)
-endif()
 
 add_executable(utec_ai_demo main.cpp)
 target_link_libraries(utec_ai_demo PRIVATE utec_ai)

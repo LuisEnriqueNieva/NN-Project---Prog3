@@ -1,16 +1,11 @@
 #pragma once
 
 #include "tensor_backend.h"
-
+#include <Eigen/Dense>
 #include <cmath>
 #include <stdexcept>
 
-#if defined(UTEC_USE_EIGEN) && __has_include(<Eigen/Dense>)
-#include <Eigen/Dense>
-#define UTEC_EIGEN_ACTIVE 1
-#else
-#define UTEC_EIGEN_ACTIVE 0
-#endif
+
 
 namespace utec::tf {
 
@@ -34,26 +29,17 @@ enum class Padding { Valid };
 inline Tensor<float> matmul(const Tensor<float>& a, const Tensor<float>& b) {
     if (a.rank() != 2 || b.rank() != 2) throw std::invalid_argument("matmul expects rank-2 tensors");
     if (a.shape()[1] != b.shape()[0]) throw std::invalid_argument("matmul incompatible shapes");
-    const std::size_t m = a.shape()[0];
-    const std::size_t k = a.shape()[1];
-    const std::size_t n = b.shape()[1];
+    const std::size_t m = a.shape()[0], k = a.shape()[1], n = b.shape()[1];
+
+    Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        ma(a.raw().data(), static_cast<Eigen::Index>(m), static_cast<Eigen::Index>(k));
+    Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        mb(b.raw().data(), static_cast<Eigen::Index>(k), static_cast<Eigen::Index>(n));
+
     Tensor<float> out(Shape{m, n});
-#if UTEC_EIGEN_ACTIVE
-    Eigen::MatrixXf ma(static_cast<Eigen::Index>(m), static_cast<Eigen::Index>(k));
-    Eigen::MatrixXf mb(static_cast<Eigen::Index>(k), static_cast<Eigen::Index>(n));
-    for (std::size_t i = 0; i < m; ++i) for (std::size_t j = 0; j < k; ++j) ma(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) = a(i,j);
-    for (std::size_t i = 0; i < k; ++i) for (std::size_t j = 0; j < n; ++j) mb(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)) = b(i,j);
-    Eigen::MatrixXf mc = ma * mb;
-    for (std::size_t i = 0; i < m; ++i) for (std::size_t j = 0; j < n; ++j) out(i,j) = mc(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j));
-#else
-    for (std::size_t i = 0; i < m; ++i) {
-        for (std::size_t j = 0; j < n; ++j) {
-            float acc = 0.0f;
-            for (std::size_t p = 0; p < k; ++p) acc += a(i, p) * b(p, j);
-            out(i, j) = acc;
-        }
-    }
-#endif
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        mc(out.raw().data(), static_cast<Eigen::Index>(m), static_cast<Eigen::Index>(n));
+    mc.noalias() = ma * mb;
     return out;
 }
 

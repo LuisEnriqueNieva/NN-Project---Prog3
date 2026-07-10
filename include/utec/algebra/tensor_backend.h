@@ -2,7 +2,7 @@
 
 #include "shape.h"
 
-#include <algorithm>
+#include <Eigen/Dense>
 #include <initializer_list>
 #include <stdexcept>
 #include <utility>
@@ -14,7 +14,7 @@ template <class T>
 class Tensor {
 private:
     Shape shape_;
-    std::vector<T> data_;
+    Eigen::Matrix<T, Eigen::Dynamic, 1> data_;
 
     [[nodiscard]] std::size_t offset_checked(const std::vector<std::size_t>& indices) const {
         if (indices.size() != shape_.rank()) {
@@ -37,13 +37,15 @@ public:
     using value_type = T;
 
     Tensor() = default;
-    explicit Tensor(const Shape& shape) : shape_(shape), data_(shape.total_size(), T{}) {}
+    explicit Tensor(const Shape& shape)
+        : shape_(shape),
+          data_(Eigen::Matrix<T, Eigen::Dynamic, 1>::Zero(static_cast<Eigen::Index>(shape.total_size()))) {}
 
     static Tensor zeros(const Shape& shape) { return Tensor(shape); }
 
     static Tensor ones(const Shape& shape) {
         Tensor t(shape);
-        std::fill(t.data_.begin(), t.data_.end(), T{1});
+        t.data_.setOnes();
         return t;
     }
 
@@ -52,7 +54,8 @@ public:
             throw std::invalid_argument("data size does not match tensor shape");
         }
         Tensor t(shape);
-        std::copy(values.begin(), values.end(), t.data_.begin());
+        std::size_t i = 0;
+        for (const T& v : values) t.data_(static_cast<Eigen::Index>(i++)) = v;
         return t;
     }
 
@@ -61,40 +64,41 @@ public:
             throw std::invalid_argument("data size does not match tensor shape");
         }
         Tensor t(shape);
-        t.data_ = values;
+        for (std::size_t i = 0; i < values.size(); ++i) t.data_(static_cast<Eigen::Index>(i)) = values[i];
         return t;
     }
 
     [[nodiscard]] const Shape& shape() const { return shape_; }
     [[nodiscard]] std::size_t rank() const { return shape_.rank(); }
-    [[nodiscard]] std::size_t size() const { return data_.size(); }
-    [[nodiscard]] bool empty() const { return data_.empty(); }
+    [[nodiscard]] std::size_t size() const { return static_cast<std::size_t>(data_.size()); }
+    [[nodiscard]] bool empty() const { return data_.size() == 0; }
 
-    [[nodiscard]] const std::vector<T>& values() const { return data_; }
-    [[nodiscard]] std::vector<T>& values() { return data_; }
+    // Acceso directo a Eigen, lo usa tensor_ops.h para matmul y demás
+    [[nodiscard]] Eigen::Matrix<T, Eigen::Dynamic, 1>& raw() { return data_; }
+    [[nodiscard]] const Eigen::Matrix<T, Eigen::Dynamic, 1>& raw() const { return data_; }
 
     T& flat(std::size_t i) {
-        if (i >= data_.size()) throw std::out_of_range("flat tensor index out of range");
-        return data_.at(i);
+        if (i >= size()) throw std::out_of_range("flat tensor index out of range");
+        return data_(static_cast<Eigen::Index>(i));
     }
 
     const T& flat(std::size_t i) const {
-        if (i >= data_.size()) throw std::out_of_range("flat tensor index out of range");
-        return data_.at(i);
+        if (i >= size()) throw std::out_of_range("flat tensor index out of range");
+        return data_(static_cast<Eigen::Index>(i));
     }
 
     template <class... Idx>
     T& operator()(Idx... idx) {
-        return data_.at(offset_checked(std::vector<std::size_t>{static_cast<std::size_t>(idx)...}));
+        return flat(offset_checked(std::vector<std::size_t>{static_cast<std::size_t>(idx)...}));
     }
 
     template <class... Idx>
     const T& operator()(Idx... idx) const {
-        return data_.at(offset_checked(std::vector<std::size_t>{static_cast<std::size_t>(idx)...}));
+        return flat(offset_checked(std::vector<std::size_t>{static_cast<std::size_t>(idx)...}));
     }
 
     [[nodiscard]] Tensor reshape(const Shape& new_shape) const {
-        if (new_shape.total_size() != data_.size()) {
+        if (new_shape.total_size() != size()) {
             throw std::invalid_argument("reshape changes tensor size");
         }
         Tensor out(new_shape);
@@ -107,26 +111,26 @@ public:
     [[nodiscard]] Tensor operator+(const Tensor& rhs) const {
         if (shape_ != rhs.shape_) throw std::invalid_argument("tensor addition shape mismatch");
         Tensor out(shape_);
-        for (std::size_t i = 0; i < data_.size(); ++i) out.data_[i] = data_[i] + rhs.data_[i];
+        out.data_ = data_ + rhs.data_;
         return out;
     }
 
     [[nodiscard]] Tensor operator-(const Tensor& rhs) const {
         if (shape_ != rhs.shape_) throw std::invalid_argument("tensor subtraction shape mismatch");
         Tensor out(shape_);
-        for (std::size_t i = 0; i < data_.size(); ++i) out.data_[i] = data_[i] - rhs.data_[i];
+        out.data_ = data_ - rhs.data_;
         return out;
     }
 
     [[nodiscard]] Tensor operator*(T scalar) const {
         Tensor out(shape_);
-        for (std::size_t i = 0; i < data_.size(); ++i) out.data_[i] = data_[i] * scalar;
+        out.data_ = data_ * scalar;
         return out;
     }
 
     Tensor& operator+=(const Tensor& rhs) {
         if (shape_ != rhs.shape_) throw std::invalid_argument("tensor addition shape mismatch");
-        for (std::size_t i = 0; i < data_.size(); ++i) data_[i] += rhs.data_[i];
+        data_ += rhs.data_;
         return *this;
     }
 };
