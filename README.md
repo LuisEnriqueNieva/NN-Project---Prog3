@@ -69,48 +69,16 @@ Para compilar y ejecutar el proyecto se necesita:
 * CMake `3.20` o superior
 * Compilador compatible con C++23
 * CLion, Visual Studio Code o terminal
-* Eigen como dependencia numérica recomendada
-
+* Eigen (incluido en el repositorio, es el backend numérico principal — no opcional)
+  
 ### Sobre Eigen
 
-El proyecto está preparado para usar Eigen como backend numérico en operaciones matriciales.
-Se puede usar de dos formas:
+El proyecto usa Eigen como backend numérico principal para el `Tensor` y las operaciones
+matriciales (`matmul`). Eigen viene incluido directamente en el repositorio en:
 
-### Opción A — Eigen instalado en el sistema o con vcpkg
+third_party/eigen-3.4.0/
 
-Ejemplo con vcpkg en Windows:
-
-```bash
-vcpkg install eigen3
-```
-
-Luego configurar CMake con el toolchain de vcpkg si corresponde.
-
-### Opción B — Eigen dentro del proyecto
-
-También se puede incluir Eigen localmente dentro de:
-
-```txt
-third_party/eigen/
-```
-
-La estructura sugerida sería:
-
-```txt
-third_party/
-└── eigen/
-    └── Eigen/
-```
-
-### Compilación estricta con Eigen
-
-Si se desea exigir Eigen obligatoriamente durante la compilación:
-
-```bash
-cmake -DUTEC_REQUIRE_EIGEN=ON ..
-```
-
-Si el entorno no tiene Eigen instalado y se usa esta opción, CMake debe fallar, lo cual permite verificar que la dependencia esté correctamente configurada.
+No requiere instalación aparte ni vcpkg: CMake apunta directo a esa carpeta.
 
 ---
 
@@ -194,14 +162,6 @@ cmake ..
 cmake --build .
 ```
 
-Si se quiere exigir Eigen de forma obligatoria:
-
-```bash
-mkdir build
-cd build
-cmake -DUTEC_REQUIRE_EIGEN=ON ..
-cmake --build .
-```
 
 > Nota: Si el proyecto se abre en CLion, el IDE crea automáticamente una carpeta de compilación como cmake-build-debug o cmake-build-release. En ese caso, los mismos comandos (ctest, ejecución del ejecutable, etc.) deben ejecutarse desde esa carpeta generada por CLion.
 
