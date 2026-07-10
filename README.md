@@ -10,7 +10,7 @@ Caso de uso: **Clasificación de patrones sintéticos en rejillas 2D usando una 
 | ------------ | ----------------------------------------------------------------------- |
 | Luana Yolanda Meniz Cueva | Backend tensorial, `Shape`, `Tensor`, operaciones numéricas y Eigen     |
 | Ximena Gamero Goyzueta | Capas base: `Dense`, `Flatten`, activaciones y pérdida                  |
-| Luis Enrique Nieva Carbajal | `Conv2D`, `MaxPooling2D`, grafo computacional y backpropagation         |
+| Luis Enrique Nieva Carbajal | `Conv2D`, `MaxPooling2D` y backpropagation         |
 | Enrique Zheng Chan | `Sequential`, optimizador, entrenamiento, persistencia y CMake          |
 | Luis Leonardo Alca Zarate | Aplicación práctica, carga de dataset, monitoreo, reportes y evidencias |
 
